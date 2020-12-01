@@ -75,7 +75,6 @@ ATOM MyRegisterClass(HINSTANCE hInstance)
 	wcex.hInstance = hInstance;
 	wcex.hIcon = LoadIcon(hInstance, MAKEINTRESOURCE(IDI_WINAPIGAME));
 	wcex.hCursor = LoadCursor(nullptr, IDC_ARROW);
-	//wcex.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
 	wcex.hbrBackground = (HBRUSH)(GetStockObject(WHITE_BRUSH));
 	wcex.lpszMenuName = MAKEINTRESOURCEW(IDC_WINAPIGAME);
 	wcex.lpszClassName = szWindowClass;
@@ -122,9 +121,13 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 //  WM_DESTROY  - отправить сообщение о выходе и вернуться
 //
 //
-const int CELL_SIZE = 120;
+const int CELL_SIZE = 100;
 HBRUSH hBrash1, hBrash2;
+HICON hIcon1, hIcon2;
 int playerTurn = 1;
+int gameBoard[9] = { 0,0,0,0,0,0, 0,0,0 };
+int winner = 0;
+int wins[3];
 
 BOOL GetGameRect(HWND hwnd, RECT* pRect)
 {
@@ -177,7 +180,7 @@ BOOL GetCellRect(HWND hWnd, int index, RECT* pRect) {
 
 	if (index < 0 || index > 8)
 		return FALSE;
-	
+
 	if (GetGameRect(hWnd, &rcBoard))
 	{
 		int y = index / 3;
@@ -194,6 +197,64 @@ BOOL GetCellRect(HWND hWnd, int index, RECT* pRect) {
 	return FALSE;
 }
 
+int GetWinner(int wins[3])
+{
+	int cells[] = { 0,1,2, 3,4,5, 6,7,8, 0,3,6, 1,4,7, 2,5,8, 0,4,8, 2,4,6 };
+
+	for (int i = 0; i < ARRAYSIZE(cells); i += 3)
+	{
+		if ((gameBoard[cells[i]] != 0) && gameBoard[cells[i]] == gameBoard[cells[i + 1]] && gameBoard[cells[i]] == gameBoard[cells[i + 2]])
+		{
+			wins[0] = cells[i];
+			wins[1] = cells[i + 1];
+			wins[2] = cells[i + 2];
+
+			return gameBoard[cells[i]];
+		}
+	}
+
+	for (int i = 0; i < ARRAYSIZE(gameBoard); ++i)
+		if (gameBoard[i] == 0)
+			return 0;
+
+	return 3;
+}
+
+void ShowTurn(HWND hWnd, HDC hdc)
+{
+	const WCHAR szPlayer1[] = L"Ход: Х";
+	const WCHAR szPlayer2[] = L"Ход: О";
+	const WCHAR* pszTurnText = ((playerTurn == 1) ? szPlayer1 : szPlayer2);
+
+	RECT rc;
+
+	if (GetClientRect(hWnd, &rc))
+	{
+		rc.top += 48;
+		SetTextColor(hdc, RGB(255, 0, 0));
+		DrawText(hdc, pszTurnText, lstrlen(pszTurnText), &rc, DT_CENTER | DT_VCENTER);
+	}
+}
+
+void ClearBoard(HWND hWnd) {
+	playerTurn = 1;
+	winner = 0;
+	ZeroMemory(gameBoard, sizeof(gameBoard));
+	InvalidateRect(hWnd, NULL, TRUE);
+	UpdateWindow(hWnd);
+}
+
+void DrawIconCentered(HDC hdc, RECT* pRect, HICON hIcon)
+{
+	const int ICON_WIDTH = GetSystemMetrics(SM_CXICON);
+	const int ICON_HEIGHT = GetSystemMetrics(SM_CXICON);
+	if (pRect != NULL)
+	{
+		int left = pRect->left + ((pRect->right - pRect->left) - ICON_WIDTH) / 2;
+		int top = pRect->top + ((pRect->bottom - pRect->top) - ICON_HEIGHT * 2);
+		DrawIcon(hdc, left, top, hIcon);
+	}
+}
 
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
@@ -203,6 +264,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	{
 		hBrash1 = CreateSolidBrush(RGB(255, 0, 0));
 		hBrash2 = CreateSolidBrush(RGB(0, 0, 255));
+
+		hIcon1 = LoadIcon(hInst, MAKEINTRESOURCE(IDI_PLAYER1));
+		hIcon2 = LoadIcon(hInst, MAKEINTRESOURCE(IDI_PLAYER2));
 	}
 	break;
 	case WM_COMMAND:
@@ -211,6 +275,14 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		// Разобрать выбор в меню:
 		switch (wmId)
 		{
+		case ID_NEWGAME:
+		{
+			int res = MessageBox(hWnd, L"Вы уверены, что хотите начать новую игру?", L"Новая игра", MB_YESNO | MB_ICONQUESTION);
+			if (IDYES == res) {
+				ClearBoard(hWnd);
+			}
+		}
+		break;
 		case IDM_ABOUT:
 			DialogBox(hInst, MAKEINTRESOURCE(IDD_ABOUTBOX), hWnd, About);
 			break;
@@ -227,22 +299,46 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		int xPos = GET_X_LPARAM(lParam);
 		int yPos = GET_Y_LPARAM(lParam);
 
+		if (playerTurn == 0)
+			break;
+
 		int index = GetCellNumber(hWnd, xPos, yPos);
 
 		HDC hdc = GetDC(hWnd);
 		if (NULL != hdc) {
-		/*	WCHAR temp[100];
-			wsprintf(temp, L"Index = %d", index);
-			TextOut(hdc, xPos, yPos, temp, lstrlen(temp));*/
-
 			if (index != -1) {
 				RECT rcCell;
-				if (GetCellRect(hWnd, index, &rcCell))
+				if ((gameBoard[index] == 0) && GetCellRect(hWnd, index, &rcCell))
 				{
-					FillRect(hdc, &rcCell, (playerTurn==2) ? hBrash1 : hBrash2);
+					gameBoard[index] = playerTurn;
+					DrawIconCentered(hdc, &rcCell, (playerTurn == 1) ? hIcon1 : hIcon2);
+					winner = GetWinner(wins);
+					if (winner == 1 || winner == 2)
+					{
+						MessageBox(hWnd,
+							(winner == 1) ? L"Х - победитель!" : L"О - победитель!!",
+							L"Ты победил!",
+							MB_OK | MB_ICONINFORMATION);
+						playerTurn = 0;
+						ClearBoard(hWnd);
+					}
+					else if (winner == 3)
+					{
+						MessageBox(hWnd,
+							L"Нет победителя!",
+							L"Это ничья!",
+							MB_OK | MB_ICONEXCLAMATION);
+						playerTurn = 0;
+						ClearBoard(hWnd);
+					}
+					else if (winner == 0)
+					{
+						playerTurn = (playerTurn == 1) ? 2 : 1;
+					}
+
+					ShowTurn(hWnd, hdc);
 				}
 
-				playerTurn = (playerTurn == 1) ? 2 : 1;
 			}
 
 
@@ -263,17 +359,27 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	{
 		PAINTSTRUCT ps;
 		HDC hdc = BeginPaint(hWnd, &ps);
-		// TODO: Добавьте сюда любой код прорисовки, использующий HDC...
 		RECT rc;
 		if (GetGameRect(hWnd, &rc)) {
-			//FillRect(hdc, &rc,(HBRUSH)GetStockObject(WHITE_BRUSH));
-		//	Rectangle(hdc, rc.left, rc.top, rc.right, rc.bottom);
+			RECT	rcClient;
+			if (GetClientRect(hWnd, &rcClient))
+			{
+				ShowTurn(hWnd, hdc);
+			}
 		}
 		for (int i = 1; i < 3; ++i)
 		{
 			DrawLine(hdc, rc.left + CELL_SIZE * i, rc.top, rc.left + CELL_SIZE * i, rc.bottom);
-
 			DrawLine(hdc, rc.left, rc.top + CELL_SIZE * i, rc.right, rc.top + CELL_SIZE * i);
+		}
+		RECT rcCell;
+		for (int i = 0; i < ARRAYSIZE(gameBoard); ++i)
+		{
+			if ((gameBoard[i] != 0) && GetCellRect(hWnd, i, &rcCell))
+			{
+				DrawIconCentered(hdc, &rcCell, (gameBoard[i] == 1) ? hIcon1 : hIcon2);
+				playerTurn = (playerTurn == 1) ? 2 : 1;
+			}
 		}
 
 
@@ -283,6 +389,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	case WM_DESTROY:
 		DeleteObject(hBrash1);
 		DeleteObject(hBrash2);
+		DestroyIcon(hIcon1);
+		DestroyIcon(hIcon2);
 		PostQuitMessage(0);
 		break;
 	default:

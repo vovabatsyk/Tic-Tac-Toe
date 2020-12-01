@@ -151,6 +151,10 @@
     <ResourceCompile Include="WinApiGame.rc" />
   </ItemGroup>
   <ItemGroup>
+    <Image Include="C:\Users\user\Downloads\circle.ico" />
+    <Image Include="C:\Users\user\Downloads\cross.ico" />
+    <Image Include="C:\Users\user\Downloads\cross_lines.ico" />
+    <Image Include="icon1.ico" />
     <Image Include="small.ico" />
     <Image Include="WinApiGame.ico" />
   </ItemGroup>

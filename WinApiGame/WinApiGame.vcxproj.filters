@@ -45,5 +45,17 @@
     <Image Include="WinApiGame.ico">
       <Filter>Файлы ресурсов</Filter>
     </Image>
+    <Image Include="C:\Users\user\Downloads\cross.ico">
+      <Filter>Файлы ресурсов</Filter>
+    </Image>
+    <Image Include="icon1.ico">
+      <Filter>Файлы ресурсов</Filter>
+    </Image>
+    <Image Include="C:\Users\user\Downloads\cross_lines.ico">
+      <Filter>Файлы ресурсов</Filter>
+    </Image>
+    <Image Include="C:\Users\user\Downloads\circle.ico">
+      <Filter>Файлы ресурсов</Filter>
+    </Image>
   </ItemGroup>
 </Project>
